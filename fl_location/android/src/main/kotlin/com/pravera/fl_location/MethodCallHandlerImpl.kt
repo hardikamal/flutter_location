@@ -16,83 +16,93 @@ import io.flutter.plugin.common.MethodChannel
 
 /** MethodCallHandlerImpl */
 class MethodCallHandlerImpl(
-		private val context: Context,
-		private val serviceProvider: ServiceProvider):
-		MethodChannel.MethodCallHandler, FlLocationPluginChannel {
+    private val context: Context,
+    private val serviceProvider: ServiceProvider
+) :
+    MethodChannel.MethodCallHandler, FlLocationPluginChannel {
 
-	private lateinit var channel: MethodChannel
-	private var activity: Activity? = null
+    private lateinit var channel: MethodChannel
+    private var activity: Activity? = null
 
-	override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
-		val reqMethod = call.method
-		if (reqMethod.contains("checkLocationPermission") ||
-				reqMethod.contains("requestLocationPermission") ||
-				reqMethod.contains("getLocation")) {
-			if (activity == null) {
-				ErrorHandleUtils.handleMethodCallError(result, ErrorCodes.ACTIVITY_NOT_ATTACHED)
-				return
-			}
-		}
+    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        val reqMethod = call.method
+        if (reqMethod.contains("checkLocationPermission") ||
+            reqMethod.contains("requestLocationPermission") ||
+            reqMethod.contains("getLocation")
+        ) {
+            if (activity == null) {
+                ErrorHandleUtils.handleMethodCallError(result, ErrorCodes.ACTIVITY_NOT_ATTACHED)
+                return
+            }
+        }
 
-		when (reqMethod) {
-			"checkLocationServicesStatus" -> {
-				val checkResult = LocationServicesUtils.checkLocationServicesStatus(context)
-				result.success(checkResult.ordinal)
-			}
-			"checkLocationPermission" -> {
-				val checkResult = serviceProvider.getLocationPermissionManager()
-						.checkLocationPermission(activity!!)
-				result.success(checkResult.ordinal)
-			}
-			"requestLocationPermission" -> {
-				val callback = object : LocationPermissionCallback {
-					override fun onResult(locationPermission: LocationPermission) {
-						result.success(locationPermission.ordinal)
-					}
+        when (reqMethod) {
+            "checkLocationServicesStatus" -> {
+                val checkResult = LocationServicesUtils.checkLocationServicesStatus(context)
+                Handler(Looper.getMainLooper()).post {
+                    result.success(checkResult.ordinal)
+                }
+            }
+            "checkLocationPermission" -> {
+                val checkResult = serviceProvider.getLocationPermissionManager()
+                    .checkLocationPermission(activity!!)
+                Handler(Looper.getMainLooper()).post {
+                    result.success(checkResult.ordinal)
+                }
+            }
+            "requestLocationPermission" -> {
+                val callback = object : LocationPermissionCallback {
+                    override fun onResult(locationPermission: LocationPermission) {
+                        Handler(Looper.getMainLooper()).post {
+                            result.success(locationPermission.ordinal)
+                        }
+                    }
 
-					override fun onError(errorCode: ErrorCodes) {
-						ErrorHandleUtils.handleMethodCallError(result, errorCode)
-					}
-				}
+                    override fun onError(errorCode: ErrorCodes) {
+                        ErrorHandleUtils.handleMethodCallError(result, errorCode)
+                    }
+                }
 
-				serviceProvider.getLocationPermissionManager()
-						.requestLocationPermission(activity!!, callback)
-			}
-			"getLocation" -> {
-				val callback = object : LocationDataCallback {
-					override fun onUpdate(locationJson: String) {
-						// 매니저에서 stopLocationUpdates 처리
-						result.success(locationJson)
-					}
+                serviceProvider.getLocationPermissionManager()
+                    .requestLocationPermission(activity!!, callback)
+            }
+            "getLocation" -> {
+                val callback = object : LocationDataCallback {
+                    override fun onUpdate(locationJson: String) {
+                        // 매니저에서 stopLocationUpdates 처리
+                        Handler(Looper.getMainLooper()).post {
+                            result.success(locationJson)
+                        }
+                    }
 
-					override fun onError(errorCode: ErrorCodes) {
-						// 매니저에서 stopLocationUpdates 처리
-						ErrorHandleUtils.handleMethodCallError(result, errorCode)
-					}
-				}
+                    override fun onError(errorCode: ErrorCodes) {
+                        // 매니저에서 stopLocationUpdates 처리
+                        ErrorHandleUtils.handleMethodCallError(result, errorCode)
+                    }
+                }
 
-				val argsMap = call.arguments as? Map<*, *>
-				val settings = LocationSettings.fromMap(argsMap)
+                val argsMap = call.arguments as? Map<*, *>
+                val settings = LocationSettings.fromMap(argsMap)
 
-				serviceProvider
-						.getLocationDataProviderManager()
-						.getLocation(activity, callback, settings)
-			}
-			else -> result.notImplemented()
-		}
-	}
+                serviceProvider
+                    .getLocationDataProviderManager()
+                    .getLocation(activity, callback, settings)
+            }
+            else -> result.notImplemented()
+        }
+    }
 
-	override fun initChannel(messenger: BinaryMessenger) {
-		channel = MethodChannel(messenger, "plugins.pravera.com/fl_location")
-		channel.setMethodCallHandler(this)
-	}
+    override fun initChannel(messenger: BinaryMessenger) {
+        channel = MethodChannel(messenger, "plugins.pravera.com/fl_location")
+        channel.setMethodCallHandler(this)
+    }
 
-	override fun setActivity(activity: Activity?) {
-		this.activity = activity
-	}
+    override fun setActivity(activity: Activity?) {
+        this.activity = activity
+    }
 
-	override fun disposeChannel() {
-		if (::channel.isInitialized)
-			channel.setMethodCallHandler(null)
-	}
+    override fun disposeChannel() {
+        if (::channel.isInitialized)
+            channel.setMethodCallHandler(null)
+    }
 }

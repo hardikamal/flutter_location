@@ -12,52 +12,55 @@ import io.flutter.plugin.common.EventChannel
 
 /** LocationStreamHandlerImpl */
 class LocationStreamHandlerImpl(
-		private val context: Context,
-		private val serviceProvider: ServiceProvider):
-		EventChannel.StreamHandler, FlLocationPluginChannel {
+    private val context: Context,
+    private val serviceProvider: ServiceProvider
+) :
+    EventChannel.StreamHandler, FlLocationPluginChannel {
 
-	private lateinit var channel: EventChannel
-	private var activity: Activity? = null
-	private var locationDataProviderHashCode: Int? = null
+    private lateinit var channel: EventChannel
+    private var activity: Activity? = null
+    private var locationDataProviderHashCode: Int? = null
 
-	override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
-		val callback = object : LocationDataCallback {
-			override fun onUpdate(locationJson: String) {
-				events.success(locationJson)
-			}
+    override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+        val callback = object : LocationDataCallback {
+            override fun onUpdate(locationJson: String) {
+                Handler(Looper.getMainLooper()).post {
+                    events.success(locationJson)
+                }
+            }
 
-			override fun onError(errorCode: ErrorCodes) {
-				ErrorHandleUtils.handleStreamError(events, errorCode)
-			}
-		}
+            override fun onError(errorCode: ErrorCodes) {
+                ErrorHandleUtils.handleStreamError(events, errorCode)
+            }
+        }
 
-		val argsMap = arguments as? Map<*, *>
-		val settings = LocationSettings.fromMap(argsMap)
+        val argsMap = arguments as? Map<*, *>
+        val settings = LocationSettings.fromMap(argsMap)
 
-		locationDataProviderHashCode = serviceProvider
-				.getLocationDataProviderManager()
-				.requestLocationUpdates(activity, callback, settings)
-	}
+        locationDataProviderHashCode = serviceProvider
+            .getLocationDataProviderManager()
+            .requestLocationUpdates(activity, callback, settings)
+    }
 
-	override fun onCancel(arguments: Any?) {
-		if (locationDataProviderHashCode == null) return
+    override fun onCancel(arguments: Any?) {
+        if (locationDataProviderHashCode == null) return
 
-		serviceProvider
-				.getLocationDataProviderManager()
-				.stopLocationUpdates(locationDataProviderHashCode!!)
-	}
+        serviceProvider
+            .getLocationDataProviderManager()
+            .stopLocationUpdates(locationDataProviderHashCode!!)
+    }
 
-	override fun initChannel(messenger: BinaryMessenger) {
-		channel = EventChannel(messenger, "plugins.pravera.com/fl_location/updates")
-		channel.setStreamHandler(this)
-	}
+    override fun initChannel(messenger: BinaryMessenger) {
+        channel = EventChannel(messenger, "plugins.pravera.com/fl_location/updates")
+        channel.setStreamHandler(this)
+    }
 
-	override fun setActivity(activity: Activity?) {
-		this.activity = activity
-	}
+    override fun setActivity(activity: Activity?) {
+        this.activity = activity
+    }
 
-	override fun disposeChannel() {
-		if (::channel.isInitialized)
-			channel.setStreamHandler(null)
-	}
+    override fun disposeChannel() {
+        if (::channel.isInitialized)
+            channel.setStreamHandler(null)
+    }
 }
