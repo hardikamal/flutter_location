@@ -20,17 +20,19 @@ class LocationStreamHandlerImpl(
     private lateinit var channel: EventChannel
     private var activity: Activity? = null
     private var locationDataProviderHashCode: Int? = null
-
+    private val uiThreadHandler: Handler = Handler(Looper.getMainLooper())
     override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
         val callback = object : LocationDataCallback {
             override fun onUpdate(locationJson: String) {
-                Handler(Looper.getMainLooper()).post {
+                uiThreadHandler.post {
                     events.success(locationJson)
                 }
             }
 
             override fun onError(errorCode: ErrorCodes) {
-                ErrorHandleUtils.handleStreamError(events, errorCode)
+                uiThreadHandler.post {
+                    ErrorHandleUtils.handleStreamError(events, errorCode)
+                }
             }
         }
 

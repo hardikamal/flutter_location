@@ -24,6 +24,7 @@ class MethodCallHandlerImpl(
     private lateinit var channel: MethodChannel
     private var activity: Activity? = null
 
+    private val uiThreadHandler: Handler = Handler(Looper.getMainLooper())
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         val reqMethod = call.method
         if (reqMethod.contains("checkLocationPermission") ||
@@ -31,7 +32,9 @@ class MethodCallHandlerImpl(
             reqMethod.contains("getLocation")
         ) {
             if (activity == null) {
-                ErrorHandleUtils.handleMethodCallError(result, ErrorCodes.ACTIVITY_NOT_ATTACHED)
+                uiThreadHandler.post {
+                    ErrorHandleUtils.handleMethodCallError(result, ErrorCodes.ACTIVITY_NOT_ATTACHED)
+                }
                 return
             }
         }
@@ -39,27 +42,29 @@ class MethodCallHandlerImpl(
         when (reqMethod) {
             "checkLocationServicesStatus" -> {
                 val checkResult = LocationServicesUtils.checkLocationServicesStatus(context)
-                Handler(Looper.getMainLooper()).post {
+                uiThreadHandler.post {
                     result.success(checkResult.ordinal)
                 }
             }
             "checkLocationPermission" -> {
                 val checkResult = serviceProvider.getLocationPermissionManager()
                     .checkLocationPermission(activity!!)
-                Handler(Looper.getMainLooper()).post {
+                uiThreadHandler.post {
                     result.success(checkResult.ordinal)
                 }
             }
             "requestLocationPermission" -> {
                 val callback = object : LocationPermissionCallback {
                     override fun onResult(locationPermission: LocationPermission) {
-                        Handler(Looper.getMainLooper()).post {
+                        uiThreadHandler.post {
                             result.success(locationPermission.ordinal)
                         }
                     }
 
                     override fun onError(errorCode: ErrorCodes) {
-                        ErrorHandleUtils.handleMethodCallError(result, errorCode)
+                        uiThreadHandler.post {
+                            ErrorHandleUtils.handleMethodCallError(result, errorCode)
+                        }
                     }
                 }
 
@@ -70,14 +75,16 @@ class MethodCallHandlerImpl(
                 val callback = object : LocationDataCallback {
                     override fun onUpdate(locationJson: String) {
                         // 매니저에서 stopLocationUpdates 처리
-                        Handler(Looper.getMainLooper()).post {
+                        uiThreadHandler.post {
                             result.success(locationJson)
                         }
                     }
 
                     override fun onError(errorCode: ErrorCodes) {
                         // 매니저에서 stopLocationUpdates 처리
-                        ErrorHandleUtils.handleMethodCallError(result, errorCode)
+                        uiThreadHandler.post {
+                            ErrorHandleUtils.handleMethodCallError(result, errorCode)
+                        }
                     }
                 }
 
